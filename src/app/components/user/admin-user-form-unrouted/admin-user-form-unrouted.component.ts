@@ -6,6 +6,7 @@ import { Router } from '@angular/router';
 import { IUser, formOperation } from 'src/app/model/model.interfaces';
 import { UserAjaxService } from 'src/app/service/user.ajax.service.service';
 import { TranslocoService } from '@ngneat/transloco';
+import { MediaService } from 'src/app/service/media.service';
 
 @Component({
   selector: 'app-admin-user-form-unrouted',
@@ -24,8 +25,9 @@ export class AdminUserFormUnroutedComponent implements OnInit {
     private oFormBuilder: FormBuilder,
     private oUserAjaxService: UserAjaxService,
     private oRouter: Router,
-    private oMatSnackBar: MatSnackBar,
-    private oTranslocoService: TranslocoService
+    private oMatSnackBar: MatSnackBar,   
+    private oTranslocoService: TranslocoService,
+    private mediaService: MediaService
   ) {
     this.initializeForm(this.oUser);
   }
@@ -38,7 +40,8 @@ export class AdminUserFormUnroutedComponent implements OnInit {
       lastname: [oUser.lastname, Validators.maxLength(255)],
       email: [oUser.email, [Validators.required, Validators.email]],
       username: [oUser.username, [Validators.required, Validators.minLength(6), Validators.maxLength(15), Validators.pattern('^[a-zA-Z0-9]+$')]],
-      role: [oUser.role, Validators.required]
+      role: [oUser.role, Validators.required],
+      profileImageUrl: [oUser.profileImageUrl]
     });
   }
 
@@ -47,21 +50,48 @@ export class AdminUserFormUnroutedComponent implements OnInit {
       this.oUserAjaxService.getOne(this.id).subscribe({
         next: (data: IUser) => {
           this.oUser = data;
+          // Establecer la URL de la imagen si existe en el formulario
+          if (this.oUser.profileImageUrl) {
+            this.userForm.get('profileImageUrl')?.setValue(this.oUser.profileImageUrl);
+          }
           this.initializeForm(this.oUser);
         },
         error: (error: HttpErrorResponse) => {
           this.status = error;
           this.oMatSnackBar.open(this.oTranslocoService.translate('global.error') + ' ' + this.oTranslocoService.translate('global.reading') + ' ' + this.oTranslocoService.translate('user.lowercase.singular') + ' ' + this.oTranslocoService.translate('global.from-server'), '', { duration: 2000 });
         }
-      })
+      });
     } else {
       this.initializeForm(this.oUser);
     }
   }
+  
 
   public hasError = (controlName: string, errorName: string) => {
     return this.userForm.controls[controlName].hasError(errorName);
   }
+
+  upload(event: any) {
+    const file = event.target.files[0];
+  
+    if (file) {
+      const formData = new FormData();
+      formData.append("file", file);
+      this.mediaService.uploadFile(formData).subscribe(response => {
+        this.oUser.profileImageUrl = response.url;
+  
+        // Actualizar el campo 'profileImageUrl' en el formulario userForm
+        this.userForm.patchValue({
+          profileImageUrl: response.url
+        });
+      });
+    }
+  }
+
+  removeProfileImage() {
+    this.userForm.get('profileImageUrl')!.setValue('http://localhost:8083/media/default.png');
+  }
+  
 
   onSubmit() {
     if (this.userForm.valid) {
